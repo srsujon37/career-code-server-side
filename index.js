@@ -17,7 +17,17 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
-// app.use(cookieParser())
+
+
+var admin = require("firebase-admin");
+
+var serviceAccount = require("./firebase-admin-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+
 
 
 const logger = (req, res,  next) =>{
@@ -39,6 +49,17 @@ const logger = (req, res,  next) =>{
       req.decoded = decoded;
       next();
     })
+  }
+
+  const verifyFirebaseToken = async(req, res, next) =>{
+    const authHeader = req.header.authorization;
+    const token = authHeader.split(' ')[1];
+    if (token) {
+      return res.status(401).send({massage: 'unauthorized access'})
+    }
+    const userInfo = await admin.auth().verifyIdToken(token);
+    console.log('inside the token', userInfo);
+    req.tokenEmail = userInfo.email;
   }
 
 // const verifyToken = (req, res, next) =>{
@@ -146,8 +167,12 @@ async function run() {
     })
 
     // job application list data collect
-    app.get('/applications', logger, async(req, res) => {
+    app.get('/applications', logger, verifyFirebaseToken, async(req, res) => {
       const email = req.query.email;
+
+      if (req.tokenEmail !== email) {
+        return res.status(403).send({message: 'forbidden access'})
+      }
 
       // console.log('inside applications cookie',req.cookies);
       // if (email !== req.decoded.email) {
